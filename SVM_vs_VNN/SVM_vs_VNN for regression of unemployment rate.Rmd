@@ -1,0 +1,1286 @@
+---
+title: "Support Vector Machines and Neural Network Models for Regression of Australia's Unemployment Rate"
+author: "Biljana Simonovikj"
+date: "17/02/2021"
+output: 
+  pdf_document: 
+    latex_engine: xelatex
+    highlight: tango
+    df_print: kable
+bibliography: references.bib
+link-citations: yes
+---
+
+\newpage
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+# Packages to download
+######################
+# Data preparation:
+library(kableExtra)
+library(readxl)
+library(knitr)
+library(funModeling)
+library(dplyr)
+library(tidyverse)
+library(Hmisc)
+library(imputeTS)
+library(lubridate)
+library(e1071)
+
+# Data visualization:
+library(ggplot2)
+library(corrplot)
+library(reshape)
+
+# Data modeling
+library(caret)
+library(kernlab)
+# install.packages("tensorflow")
+library(tensorflow)
+library(keras)
+library(tfruns)
+library(tictoc)
+```
+\definecolor{fancyTextColor}{HTML}{4284f5}
+\definecolor{hightlightColor}{HTML}{F5F5F5}
+
+### Abstract/Executive Summary
+<p>&nbsp;</p>
+Not taking the latest COVID-19 situation into consideration, while in recent years the unemployment rate has fallen from  its peak of over 11% per cent in the early 1990s, there has been a relatively consistent trend downwards and unemployment rates went as low as 4.2% in 2008. However, the great recession that occured between 2008 and 2010 caused an increase about 2% in unemployment rate which remained steady afterwards, but that period was not predicted. In this paper, the goal is to show how chosen Machine Learning technique which is Support Vector Machine with Radial Basis Kernel with [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) package and Deep Learning technique which is Vanilla Neural Networks with [keras](https://keras.io/) may improve short-term predicitive accuracy.
+
+As a case study, we used Australia's unemployment rate time series data starting from June 1981 until December 2020 with related variables. We evaluated model accuracy by measuring Root Mean Squared Error, (RMSE), R Squared, $(R^2)$ and Mean Absolute Error,(MAE) for regression of Australian unemployment rate. The algorithms were trained on Australian macroeconomics variables over the period of 1981:Q2 to 2018:Q1. The results were tested using the same variables over the period from 2018:Q1 to 2020:Q4. As a result, both algorithms are able to predict economic downturns but higher accuracy was obtained by using Vanilla Neural Network keras model with 3 layers and 64 nodes. The solution of the problem produced by SVM with RMSE = 0.6381 was a little contradictory with the actual values as assessed by graphical visualisation. It overestimated the unemployment rate which resulted in a predicted decrease of the unemployment rate over the last months of 2020 despite the observed increase in actual values. On the other hand, the Neural Network with estimated RMSE of 0.4675 in the final model demonstrated extraordinary accuracy in capturing the increase of unemployment rate and overall pattern of data. 
+
+### Brief Overview of the Australian Unemployment Rate
+
+
+Unemployment occurs when someone is willing and able to work but does not have a paid job. It is measured as percentage of people in the labour force who are "unemployed". Statistical summaries of the labour force, such as those produced by the Australian Bureau of Statistics (ABS), @australia2008australian, divide the population aged 15 and over into "employed", "unemployed" and "not in the labour force". In general, the ABS calculates Australia’s unemployment rate using only the labour force, thus, the unemployment rate is an important measure for the Australian government because it provides a meaningful insight into the state of the national economy and the general well-being of citizens. 
+
+###### *Unemployment in the Past and Today*
+
+
+Today, the outlook for the Australian and global economies is being driven by the COVID-19 pandemic in the past two years. The onset of COVID-19 pandemic saw unemployment climb in Australia economy from 5.4 to 7.5 % in June, 2020. Since today, the unemployment rate  decreased 0.2 points to 6.4% and it was at steady level of 5.2% in the last quarter of 2019. The 5.2% is considered as steady level of unemployment rate that follows a five-year downward trend to reach peak at 6.3% in 2014, @downes2014effect. Over the last 20 years, there have been two such periods when the unemployment rate has experienced a steady decline: in the early 2000s when unemployment was approximately 7% in the midst of a post-recession recovery; from 2001 until 2008, employment participation had been rising and unemployment had been falling until a low of 4.2% that was reached in 2008. However, Global Financial Crisis (GFC) in 2008-2009, marked something of a turning point for the Australian labour market and it caused the unemployment rate to increase sharply to 5.7% over the next 12 months, @de2020climbing. The unemployment rate did jump around 2 percentage points in 2008-2009, but it then remained steady and did not return to its higher pre-2001 levels until the COVID-19 crisis.
+
+###### *The Australian Labour Market*
+
+
+The Australian labour market is quite dynamic and flexible in absorbing workers from 2008 until the COVID-19 crisis, with many people flowing into and out of employment, unemployment and the labour force each month, but it is characterized as weak-labor market. The weak labour market from 2008 to 2020 is reflected primarily in young workers finding lower-scored occupations and earning lower wage rates than earlier generations. The average duration of unemployment has increased steadily and the rate at which unemployed people are able to find a job has slowed. At the same time, full-time  employment declined and part-time employment increased among workers aged 15-34. Hence, over the past 20 years, half of the unemployed pool remain unemployed from month to month because around 23% of unemployed people transition into employment and a further 21% leave the labour market each month according to the analysis with micro-level labour market data, @carroll2006explaining. However, recently it has been published that there is usually a quite strong link between the unemployment rate and full-time employment, @burda2010unemployment. When looking for a good indicator of the state of the economy, it is better to look for underemployment rate as it measures persons who usually work less than 35 hours per week but prefer to work more hours, @cassidy2020long. Some authors have argued  that the risein part-time work implies that the unemployment rate has lost its relevance as a measure of labour market health, @biddle2020changes. This suggests that the unemployment rate may no longer be useful as the primary measure of the health of the labour market. 
+
+###### *Unemployment Rate Predictors in the Real World*
+
+
+Some factors which are considered relevant to predict unemployment rate of the weak-labor market in Australia are GDP (gross domestic product), Government final consumption expenditure, final consumption expenditure of industry sectors, term of trade index, CPI (consumer price index), the number of job vacancies and the estimated resident population, @mcdonald2020macroeconomic. GDP is a measure of consumption and investment which is affected by overall revenue and directly correlated to unemployment rate. Government final consumption expenditure is a measure of government spending on the needs of individuals or broader community and it is significant contributor to the overall GDP of Australia, contributing around 20% of the total GDP since 1975 (@bayar2016financial). Similarly, final consumption expenditure of all industry sectors considers the total spending of all Australian Industries, which is also a great contributor to the overall GDP of Australia. Terms of Trade Index is calculated as the ratio of export prices to import prices, if it increases, it is considered a favourable movement in the terms of trade. Consumer price index (CPI) is defined by the ABS, @australia2008australian as “a measure of the average change over time in the prices paid by households for a fixed basket of goods and services”. It is primarily used to monitor and evaluate levels of inflation in the Australian economy. The number of job vacancies and the estimated resident population are also key factors as they give an indication of the pressures and availability of jobs within Australia. 
+
+```{r load the data, echo=FALSE, results = "hide"}
+# Load the data
+aus_data <- read_excel("AUS_Data.xlsx", sheet = 1, skip = 1)
+print(knitr::kable(head(aus_data[1:5,1:4]), align = 'c', format = "markdown"))
+```
+
+
+```{r data wrangling, echo=FALSE, results = "hide"}
+str(aus_data)
+dim(aus_data)
+sapply(aus_data, class)
+
+# Modify column names
+colnames(aus_data) <- c("date", "unemployment_rate", "GDP", "GGFCE", "ASFCE", "TOT",
+                        "CPI", "job_vacancies", "ERP")
+
+# Change the format of date column
+aus_data$date <- as.Date(aus_data$date, format = "%Y/%m/%d")
+
+# Derive year of date attribute
+aus_data$year <- year(aus_data$date)
+
+# Derive month of date attribute
+aus_data$month <- month(aus_data$date)
+
+# Convert categorical variable into numeric
+aus_data$job_vacancies <- as.numeric(aus_data$job_vacancies)
+aus_data$ERP <- as.numeric(aus_data$ERP)
+
+# Round-up the values across dataset
+aus_data_all <- aus_data %>% mutate(across(everything(), round, 1))
+
+# Checking missing values, data type and unique values
+df_status(aus_data_all, print_results = F) %>% dplyr::select(variable, type, unique, q_na, p_na) %>% arrange(type)
+
+# Imputation by linear interpolation with library ("imputeTS")
+data <- na_interpolation(aus_data_all, option = "linear")
+```
+
+<p>&nbsp;</p>
+
+
+```{r unemployment rate by year plot, echo=FALSE, fig.width = 8, fig.height = 4}
+# Unemployment rate by year
+ggplot(data, aes(x = date, y = unemployment_rate)) +
+  geom_line(color = "dodgerblue2", size = 2) +
+  xlab("") + ylab("") +
+  labs(title = "Australia's Unemployment Rate Over Time",
+       subtitle = "June 1981 - September 2020, Australian Bureau of Statistics, (ABS)") +
+  theme_classic() +
+  scale_y_continuous(labels = scales::comma) +
+  geom_hline(yintercept = c(max(aus_data_all$unemployment_rate),
+                            min(aus_data_all$unemployment_rate)),
+             color = 'gray50', linetype = "dashed") +
+  theme(plot.background = element_rect(fill = "dodgerblue2"),
+        axis.text.x = element_text(color = "white", angle = 60, hjust = 1),
+        axis.text.y = element_text(color = "white"),
+        plot.title = element_text(color = "white",size = 12),
+        plot.subtitle = element_text(color = "white",size = 10))
+```
+$\color{blue}{\text{Figure 1:}}$ This statistics presents the unemployment rate in Australia from 1980 to 2020. The unemployment rate is cyclic for the first 20 years, but random for the last. It shows large decreases over economic downturns - most notably during the early 1990s and the Global Financial Crisis (GFC) between 2008-2010. 
+
+#### Aim of the Project
+<p>&nbsp;</p>
+
+
+The goal of this report is to work through machine learning  and deep learning problem from end-to-end on a time series dataset to predict the Australia’s unemployment rate. In general, this predictive modeling project can be broken down into about 6 common tasks: define the problem, summarize the data, prepare the data including sub-setting the data, evaluate supervised machine learning algorithms (Support Vector Machine with Radial Basis Kernel, SVM and Random Forest, RF) and a Vanilla Neural Network, VNN to the prepared data, analyze the predictive performance on training and testing data and compare the results.
+
+### Data
+
+
+(i) The source of the data is Australian Bureau of Statistics (ABS), https://www.abs.gov.au/about?OpenDocument&ref=topBar.
+(ii) The dataset of interest, called "AUS_Data.xlsx", is aggregated from monthly to quarterly time spans for the assignment purpose. The data is available quarterly from June 1981 to December 2020. 
+(iii) The sample size is 158 rows.
+(iv) The dataset contain 7 input/predictor variables and 1 output/response variable. All variables are continuous/measure, except Period which is date/time continuous; Job vacancies (000) and Estimated Resident population(000) are discrete (Table 1).
+
+```{r, echo = FALSE, fig.cap="Table 1: Data dictionary for AUS_Data.xlsx datasets", message=FALSE, warning=FALSE}
+# First, we assign the columns: row_id, var_names, type, description, define the column names and 
+# connect them into dataframe that is converted into table with kableExtra package:
+row_id <- c(1, 2, 3, 4, 5, 6, 7, 8, "Output", 1)
+var_names <- c("Period", "Gross domestic product: Percentage", 
+               "General government ;  Final consumption expenditure: Percentage",
+               "All sectors ;  Final consumption expenditure: Percentage",
+               "Terms of trade: Index - Percentage", "CPI (all group)", "Job vacancies (000)",
+               "Estimated Resident population(000)", "Name", "Unemployment rate Percentage")
+type <- c("Date/Time continuous","Numeric continuous","Numeric continuous","Numeric continuous","Numeric continuous","Numeric continuous",
+          "Numeric discrete","Numeric discrete", "Type", 
+          "Numeric continuous")
+description <- c("Represents each three month period of the year", 
+                 "Percentage estimates in Gross domestic product", "Percentage estimates in the Government final consumption expenditure", 
+                 "Percentage estimates in final consumption expenditure of all industry sectors", "Term of trade index (percentage)", 
+                 "Consumer Price Index of all groups (CPI)", "Number of job vacancies measured in thousands", 
+                 "Estimated Resident Population measured in thousands", "Description", 
+                 "Unemployment rate measured in percentage")
+col_names <- c("Input", "Name", "Type", "Description")
+metadata_df <- cbind(row_id, var_names, type, description)
+colnames(metadata_df) <- col_names
+
+# Create the table with kableExtra package
+kable(metadata_df, caption="Data dictionary for AUS Data dataset") %>% 
+  kable_styling(full_width = F, font_size = 8, latex_options = "striped") %>% 
+  column_spec(c(2,4), width = "15em") %>% 
+  column_spec(4, width = "20em") 
+```
+
+(v) Prepearing data for analysis: a) changing column names of all variables to "date", "GDP", "GGFCE", "ASFCE", "TOT", "CPI", "job_vacancies", "ERP" and "unemployment_rate"; b) changing format of date column with 
+[lubridate](https://www.rdocumentation.org/packages/lubridate) package and deriving year and month from the date attribute; c) coercing data types of "job_vacancies" and "ERP" into numeric data types; d) checking missing values, data type and unique values with\colorbox{hightlightColor}{df status} function from [funModeling](https://www.rdocumentation.org/packages/funModeling) package. There were 5 NA's detected at "job_vacancies" and "ERP" variables each which were imputed by linear interpolation algorithm with [imputeTS](https://cran.r-project.org/web/packages/imputeTS/imputeTS.pdf) package as the best suitable type of imputation to time-series data, @moritz2017imputets; 
+(vi) Pre-processing interventions: a) in order to interpret data using descriptive statistics we calculated the measures of central tendency (min, max, mean and median) and measures of dispersion (standard deviation, variance, IQR and skewness) as shown in Table 2; b) unimodal analysis (histograms, density plots, box plots) and multimodal analysis (scatter plots) of target variables including correlation analysis with \colorbox{hightlightColor}{cor} function were performed; c) the dataset was partitioned without \colorbox{hightlightColor}{set.seed} function into its training and testing datasets in which the train data included 147 observations before March 2018 whilst the test dataset consisted of 11 observations form March 2018 to December 2020. The date variable was removed from training and testing datasets. The training and test unemployment rate columns were saved in respective vectors.
+The results from the table shows that GDP and ASFCE have skewness of -3.0 and -2.84 respectively, or skewed distribution to the left which is caused by outliers. No outliers were omitted from the dataset in order to maintain data integrity. Except, outliers were replaced with median values from GDP, ASFCE and GGFCE variables. Standard deviation is a measure used to quantify the amount of variation of a set of data values from its mean. For instance, since the mean of unemployment_rate is 6.86 and its standard deviation is 1.79, we can estimate that approximately 95% of the values will fall in the range of $6.86-(2*1.79)$ to $6.86 +(2*1.79)$ or between 3.28 and 10.44. 
+(vii) Data normalization: we standardize the data with z-score normalization by columns of predictor variables, where each column was rescaled to have zero mean and standard deviation 1, $xnorm=(x-μ)/σ$ with the \colorbox{hightlightColor}{scale} function. Mean and standard deviation values of training dataset were used for rescaling testing dataset. The goal of normalization which is very important to VNN is to change the values of numeric columns in the dataset to a common scale with aim to: 
+
+*  speed up learning process which will lead to faster convergence;
+*  ensure a feature has both positive and negative values which makes it easier for the weight
+vectors to change directions. This helps in making the learning flexible and faster by reducing
+the number of epochs required to reach the minima of the loss function; 
+*  ensure that the magnitude of the values a feature assumes fall within a similar
+range. The network regards all input features to a similar extent, irrespective of the magnitude
+of the values they hold.
+
+Developing machine learning algorithms was performed with [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) package, whereas developing the network architecture for a VNN was performed with [kears](https://cloud.r-project.org/web/packages/keras/keras.pdf) and [tensorFlor](https://tensorflow.rstudio.com/installation/) packages. Both methods were implemented in R version (4.0.3).
+
+(viii) only for keras protocol, after normalization step, additional step was introduced, because [kears](https://cloud.r-project.org/web/packages/keras/keras.pdf) requires all predictors and response variables to be numeric in a matrix form which was accomplished with \colorbox{hightlightColor}{as.matrix} function after data partitioning. The training and test unemployment rate columns saved as vectors were converted into matrices as well. 
+ 
+```{r table for descriptive statistics analysis, echo = FALSE, message=FALSE, warning=FALSE}
+# Create a table for descriptive statistics analysis
+num_var <- data[,2:9]
+Max <- round(apply(num_var,2,max),1)
+Min <- round(apply(num_var,2,min),1)
+Mean <- round(apply(num_var,2,mean),1)
+Median <- round(apply(num_var,2, median),1)
+SD <- round(apply(num_var,2, sd),1)
+Variance <- round(apply(num_var,2, var),1)
+IQR <- round(apply(num_var,2, IQR),1)
+Skewness <- round(apply(num_var, 2, skewness),1)
+descriptive_statistics <-cbind(Max, Min, Median, Mean, SD, Variance, IQR, Skewness)
+
+rownames(descriptive_statistics)<- c("unemployment_rate", "GDP", "GGFCE", "ASFCE", "TOT",
+                        "CPI", "job_vacancies", "ERP")
+
+kable(descriptive_statistics, caption = "Descriptive Statistics") %>% 
+  kable_styling(full_width = F, font_size = 8, latex_options = "striped") %>% 
+  column_spec(c(1), width = "10em") 
+```
+
+
+```{r, echo = TRUE, include = FALSE}
+# Replace outliers with median values
+data$ASFCE[data$ASFCE %in% boxplot(data)$out] <- median(data$ASFCE)
+data$GDP[data$GDP %in% boxplot(data)$out] <- median(data$GDP)
+data$GGFCE[data$GGFCE %in% boxplot(data)$out] <- median(data$GGFCE)
+
+# Data sub-setting
+train_data <- subset(data, date < "2018-03-01")
+test_data <- subset(data, date >= "2018-03-01")
+```
+
+
+```{r, echo = FALSE}
+# Data normalization: standardization
+mean <- apply(train_data[,3:ncol(train_data)], 2, mean)
+std <- apply(train_data[,3:ncol(train_data)], 2, sd)
+
+# scale the train and test data
+train_data_scaled <- scale(train_data[,3:ncol(train_data)], center = mean, scale = std)
+test_data_scaled <- scale(test_data[,3:ncol(test_data)], center = mean, scale = std)
+
+# bind scaled predictors with the response variable unemployment rate
+scaled_train <- cbind(train_data[,2], train_data_scaled)
+scaled_test <- cbind(test_data[,2], test_data_scaled)
+```
+
+
+
+### Analysis and Investigation of Machine Learning (ML) method
+<p>&nbsp;</p>
+
+
+We select two algorithms capable of working on this regression problem implemented with [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) package. The 2 algorithms selected include: 
+
+*  non-linear algorithm: Support Vector Machines (SVM) with a radial basis function 
+*  Random Forest, (RF) with bagging technique for decision trees 
+
+The data is small-sized, times series data, nonlinear and non-stationary because it contains trends and seasonal effects shown quarterly. SVM is a supervised model that can solve linear or nonlinear problems, especially on small datasets. This algorithm tries to create a decision boundary that has maximum margin and optimal hyperplane. The boundaries of data can be obtained by using the convex hull, @yang2002support. The key formation of SVM's is a kernel function, that uses convex hull to choose the extreme points. SVM for regression is considered a nonparametric technique because it relies on kernel functions. The output model from SVR does not depend on distributions of the underlying dependent and independent variables, instead it depends on kernel functions, @trafalis2000support. The commonly used kernel functions are: a) Linear, b) Polynomial, c) Sigmoid and d) Radial Basis. Given a non-linear relation between the variables of interest and difficulty in kernel selection, we select Radius Basis Function (RBF) kernel as the default kernel. The kernel function transforms our data from non-linear space into a higher dimensional feature space where it is easier to find a separating hyperplane and where a linear threshold can be used, @wauters2014support. The kernel trick allows the SVR to find a fit and then data is mapped to the original space. The non-linear SVM  results will be a linear combination, but with new variables, which are going to be derived through a kernel transformation of the prior predictors' ratios. 
+
+The advantages of the SVM technique can be summarised as follows: a) SVM with Radial Kernel has a  flexibility in the choice of the form  of the threshold that separates the unemployment rate from less important predictors, and no assumptions about the functional form  of the transformation is necessary. b) if the hyper parameters C and sigma are appropriately chosen, SVMs can be robust, even when the training sample has some bias, @awad2015support; c) SVMs deliver always a unique solution, since the optimazation problem is convex. This is an advantage compared to VNNs, which have multiple solutions associated with local minima and for this reason may not be robust over different samples. 
+
+Random Forest is very robust algorithm also used both in classification and regression and is based on the bagging and ensemble learning technique. It creates many trees and combines the output of all the trees. In this way it reduces overfitting and the variance and therefore improves the accuracy, @lingjun2018random. Most important advantages are: a) works well with both categorical and continuous variables; b) very tolerant to missing values; c) no feature scaling (standardization or normalization) required as it uses rule based approach instead of distance calculation; d) can handle successfully non-linearity and outliers; e) less impacted by noise. The main disadvanatges are: a) it can be complex by creating a lot of trees which requires more computational power and resources; b) longer training period because it generates a lot of trees and makes decision on the majority of votes.
+
+In general, regression models can't predict beyond the range in the training data and it is known that they underestimate high values and overestimate low values in the data, @horning2013introduction.
+ 
+##### Parameters and Hyper-Parameters 
+<p>&nbsp;</p>
+
+The streamline of model building and evaluation process involves using the \colorbox{hightlightColor}{train()} function to:
+
+*  evaluate the effect of model tuning parameters on performance by using resampling method
+*  choose the “optimal” model across these parameters
+*  estimate model performance from a training dataset
+
+**\colorbox{hightlightColor}{train()} function arguments applied in the models**:
+
+1.  \colorbox{hightlightColor}{Method} - string specifies which regression model to apply: "svmRadial" or "rf".
+2.  \colorbox{hightlightColor}{TuneGrid} - a data frame with possible tuning values. The columns are named the same as the tuning parameters. We specify the values of sigma = seq(0.01, 1, 0.1), C = seq(1, 10, by=1) for SVM model and mtry = c(1:9) for RF model that we want to analyze with\colorbox{hightlightColor}{expand.grid()} function.
+3.  \colorbox{hightlightColor}{Metric} - a string that specifies what summary metric will be used to select the optimal model evaluation. We set to "RMSE" for this regression task.
+4.  \colorbox{hightlightColor}{TuneControl} - a list of values that define cross-validation of the model.
+
+The SVM model defined by [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) package has two hyperparameters: "sigma" and "C":
+
+1.  \colorbox{hightlightColor}{sigma} – controls the influence of individual training instances. A value too low can be to restrictive whereas a value to high can lead to overfitting.
+2.  \colorbox{hightlightColor}{C} (cost) – is the regularization parameter of the support vectors in all dimensions of the hyperplane that controls training errors and margins. The cost value represents the number of mis-classifications that are allowed and thus makes the model less sensitive to outliers and reduces the risk of over fitting the training data. A large value of Cost parameter indicates poor accuracy but low value confirms bias and vice-versa. The bias variance trade off is always an important consideration in any ML model. 
+
+The Random Forest model defined by [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) package has only one hyperparameter: "mtry":
+
+1.  \colorbox{hightlightColor}{mtry} - defines the number of variables randomly sampled as candidates at each split. We specify that mtry = c(1:9) which is the number of predictors in the training dataset.
+
+When we are building a predictive model, we need to evaluate the capability of the model on unseen data. This is typically done by estimating accuracy using data that was not used to train the model. We evaluate model accuracy using repeated 5-fold cross validation with 3 repeats. Cross validation is a gold standard for evaluating model accuracy to balance overfitting the training data. The parameters for cross-validation are assigned as part of\colorbox{hightlightColor}{trainControl()} function. 
+
+
+ **\colorbox{hightlightColor}{trainControl()} function arguments applied**:
+
+1.  \colorbox{hightlightColor}{Method} - determines the type of sampling/validation to be undertaken. Repeated cross validation, "repeatedcv" is chosen to estimate the tuning parameters.
+2.  \colorbox{hightlightColor}{Number} - number of folds for cross validation. This is set at 5 for 5-fold cross validation. 
+3.  \colorbox{hightlightColor}{Repeats} - the number of repetitions of cross validation to be undertaken. This is set to 3 due to computational time.
+
+##### Model Evaulation Metrics
+<p>&nbsp;</p>
+
+When we use [caret](https://github.com/topepo/caret/blob/master/models/files/gbm.R) to evaluate the created models, the default metrics used are Root Mean Squared Error, RMSE, R Squared, $(R^2)$ and Mean Absolute Error, MAE for regression. RMSE is the average deviation of the predictions from the observations. It is useful to get a gross idea of how well (or not) an algorithm is doing, in the units of the response variable. Values closest to zero are the best. $R^2$ or also called the coefficient of determination provides a goodness-of-fit measure for the predictions to the observations. This is a value between 0 and 1 for no-fit and perfect fit respectively. MAE is also a useful as it measures the average magnitude of the errors in a set of predictions, without considering their direction. Same as RMSE, values closest to zero are the best.
+
+##### Models Performances and Interpretations on Training Dataset 
+<p>&nbsp;</p>
+
+We evaluate baseline models of SVM and RF on train data with 5-fold cross
+validation (each fold is 147 observations for training and 11 for test) with 3 repeats. As to SVM, tuning parameter 'sigma' was held constant at a value of 0.08232. RMSE was used to select the optimal model using the smallest value of 0.0.9541201 (Table 3). The final values used for the model were sigma = 0.9541201 and C = 1. RF performed better than SVM with smallest RMSE value of 4500681 and mtry = 5. We can also see that RF has the best fit for the data in his $R^2$ measures (Table 4). The training error rate is presented as standard deviations of each parameter (SESD, RsquaredSD, MAESD).
+
+```{r, echo=FALSE}
+# Load the models
+fit.svm <- readRDS("fit.svm.RDS")
+fit.rf <- readRDS("fit.rf.RDS")
+fit.svm.tune <- readRDS("fit.svm.tune.RDS")
+fit.rf.tune <- readRDS("fit.rf.tune.RDS")
+```
+
+
+```{r baseline performance, echo = FALSE, eval=FALSE}
+# Run algorithms using 5-fold cross validation
+
+# SVM
+tic1 = proc.time()[3] # define start time
+trainControl <- trainControl(method="repeatedcv", number=5, repeats=3)
+metric <- "RMSE"
+set.seed(7)
+fit.svm <- caret::train(unemployment_rate~., data=scaled_train, method="svmRadial", metric=metric,
+                        trControl=trainControl)
+
+toc_fit.svm=proc.time()[3] - tic1 # calculate the running time
+
+# Random Forest
+tic2 = proc.time()[3] # define start time
+trainControl <- trainControl(method="repeatedcv", number=5, repeats=3)
+metric <- "RMSE"
+set.seed(7)
+fit.rf <- caret::train(unemployment_rate~., data=scaled_train, method="rf", metric=metric,
+                trControl=trainControl)
+
+toc_fit.rf=proc.time()[3] - tic2 # # calculate the running time
+```
+
+```{r compare results from baseline, echo = FALSE, results='hide'}
+# Compare algorithms
+baselineResults <- resamples(list(SVM_base=fit.svm, RF_base=fit.rf))
+summary(baselineResults)
+```
+
+```{r baseline SVM results, echo = FALSE}
+# Baseline SVM model results
+result_fitsvm<-as_tibble(fit.svm$results[which.min(fit.svm$results[,3]),])
+knitr::kable(result_fitsvm, caption=" Results of estimated SVM model accuracy on train data", 
+      align = 'c', format = "markdown")
+```
+
+```{r baseline RF results, echo = FALSE}
+# Baseline RF results
+result_fitrf<-as_tibble(fit.rf$results[which.min(fit.rf$results[,2]),])
+knitr::kable(result_fitrf, caption=" Results of estimated RF model accuracy on train data", 
+      align = 'c', format = "markdown")
+```
+We improve the accuracy of the well performing algorithms by tuning their parameters. We can see (Table 5) that the sigma values flatten out with larger C cost constraints. It looks like SVM might do well with a sigma of 0.1 and a C of 2 which gives us a respectable RMSE of 0.949117. On the other hand, tuning RF (Table 6) involves tuning only one parameter, as a result the grid search is a linear search through a vector of predictor values. We can see that the most accurate value for mtry = 5 with an accuracy of RMSE = 0.4555232. The RF algorithm created the most accurate model and we can get this idea simply by observing the plot below of predicted values for unemployment rate versus actual values.  
+```{r tuning svm, echo = FALSE, eval=FALSE}
+# Improve results with tuning
+#############################
+# SVM
+tic3 = proc.time()[3] # define start time
+trainControl <- trainControl(method="repeatedcv", number=5, repeats=3)
+metric <- "RMSE"
+set.seed(7)
+grid <- expand.grid(sigma=seq(0.01, 1, 0.1), C=seq(1, 10, by=1))
+
+fit.svm.tune <- caret::train(unemployment_rate~., data=scaled_train, method="svmRadial", metric=metric,
+                             tuneGrid=grid, trControl=trainControl)
+toc_fit.svm.tune=proc.time()[3] - tic3 # calculate the running time
+```
+
+```{r tuning random forest, echo = FALSE, eval=FALSE}
+tic4 = proc.time()[3] # define start time
+trainControl <- trainControl(method="repeatedcv", number=5, repeats=3)
+metric <- "RMSE"
+set.seed(7)
+
+grid <- expand.grid(.mtry =c(1:9))
+
+fit.rf.tune <-caret::train(unemployment_rate ~ ., data = scaled_train, method = "rf",metric=metric,
+                    tuneGrid=grid, trControl=trainControl)
+toc_fit.rf.tune=proc.time()[3] - tic4 # calculate the running time               
+```
+
+
+```{r compare tuned algorithms, echo=FALSE, results='hide'}
+# Compare algorithms
+overallResults <- resamples(list(SVM_base=fit.svm, SVM_tune = fit.svm.tune,  
+                                  RF_base=fit.rf, RF_tune = fit.rf.tune))
+summary(overallResults) 
+```
+
+```{r tuned SVM results, echo = FALSE}
+# Tuned SVM model results
+result_fitsvm_tune<-as_tibble(fit.svm.tune$results[which.min(fit.svm.tune$results[,3]),])
+knitr::kable(result_fitsvm_tune, caption=" Results of tuned SVM model accuracy on train data", 
+      align = 'c', format = "markdown")
+```
+
+```{r tuned RF results, echo = FALSE}
+# Tuned RF results
+result_fitrf<-as_tibble(fit.rf.tune$results[which.min(fit.rf.tune$results[,2]),])
+knitr::kable(result_fitrf, caption=" Results of tuned RF model accuracy on train data", 
+      align = 'c', format = "markdown")
+```
+
+```{r predictions on train data, echo = FALSE, results="hide"}
+# Predictions on train data
+set.seed(123)
+svm_train_predict <- predict(fit.svm.tune, newdata = scaled_train)
+rf_train_predict <- predict(fit.rf.tune, newdata = scaled_train)
+
+# Attach date column to the scaled train dataframe
+date <- train_data $date
+scaled_complete <- cbind(scaled_train, date)
+train_df<- data.frame(
+  date = scaled_complete$date,
+  train_unemploy = scaled_complete$unemployment_rate,
+  predict_svm_unemployment_rate = svm_train_predict,
+  predict_rf_unemployment_rate = rf_train_predict)
+
+```
+
+```{r plot of predicted versus actual on train data, echo = FALSE, fig.width = 8, fig.height = 4}
+# Plot the train predicted values versus actual
+train_df %>%
+  mutate(group = as.factor(1)) %>% 
+  ggplot()+
+  geom_line(aes(x = date, y = train_unemploy), linetype = "dashed")+
+  geom_line(aes(x = date, y = predict_rf_unemployment_rate, color = "RF"), alpha=0.8)+
+  geom_line(aes(x = date, y = predict_svm_unemployment_rate, color = "SVM"), alpha=0.8)+
+  scale_y_continuous(breaks = seq(3,11.5,0.5))+
+  xlab("") + ylab("") +
+  labs(title = "Predictions on Train Data: Australia's Unemployment Rate Over Time",
+       subtitle = "June 1981 - February 2018, Australian Bureau of Statistics, (ABS)")+
+  theme_classic()+
+  theme(plot.background = element_rect(fill = "dodgerblue2"),
+        axis.text.x = element_text(color = "white", angle = 60, hjust = 1),
+        axis.text.y = element_text(color = "white"),
+        plot.title = element_text(color = "white",size = 12),
+        plot.subtitle = element_text(color = "white",size = 10))
+
+```
+$\color{blue}{\text{Figure 2:}}$ Predicted vs actual values of unemployment rate for RF & SVM models on train data.
+
+##### Predicitive Performances of the Models on Test Dataset 
+<p>&nbsp;</p>
+
+Predictive performance of SVM and RF on training and test data is shown in (Table 7). Model evaluation metrics were coded as user-define functions in R. These functions are used to compare the generated train and test predictions with the actual test unemployment rate in order to determine the best predictive regression model. Surprisingly, high values of RMSE for RF model on unseen data clearly indicate that the RF model is subject to overfitting the data. The classifier has completely mimicked the training data patterns when we are testing it on unseen data, its unable to find that patterns and returns accurate predictions.
+In a random forest, it happens when we use a larger number of trees than necessary. We have just eleven observations in our test dataset, then each of the samples taken with replacement from this data would
+consist of not more than the eleven distinct values. Shuffling the cases and not drawing some of them would not change much about its ability to learn anything new about the underlying distribution. So a small
+sample is a problem for bootstrap. 
+
+In addition, results from the (Table 7) indicate that the predicted R Squared for RM on unseen data is 0.0433790 or 0.4% which is very low in comparison to training data which is 99% for our model. We have reason to believe that the RF model do not predict new observations as well as it fits the training data. On the other hand, predicted R Squared for SVM model of 22% sounds better but yet, if we observe the visualization, (Fig.3) in details we can notice that from March, 2020 until September, 2020, the predicted values provided by SVM solution are decreasing instead of observed increase in actual values.  
+
+```{r predictions on test data, echo = FALSE, results='hide'}
+# Prediction on the test data
+set.seed(123)
+svm_test_predict <- predict(fit.svm.tune, newdata =scaled_test)
+rf_test_predict <- predict(fit.rf.tune, newdata = scaled_test)
+
+# Attach date column to the scaled test dataframe
+date <- test_data$date
+scaled_complete_test <- cbind(scaled_test, date)
+predict_test_df<- data.frame(date = scaled_complete_test$date, test_unemployment_rate =   
+                            scaled_complete_test$unemployment_rate, 
+                             rf_predict_unemploy_test = rf_test_predict, 
+                            svm_predict_unemploy_test =svm_test_predict)
+
+```
+
+
+```{r metrics functions for rmse, rsquared and mae, echo = FALSE}
+# function calculating RMSE
+rmse = function(actual, pred){
+  sqrt(mean((pred - actual)^2))
+}
+
+# function calculating R squared
+rsquare <- function(actual, pred){
+  rss <- sum((pred - actual) ^ 2)  ## residual sum of squares
+  tss <- sum((actual - mean(actual)) ^ 2)  ## total sum of squares
+  rsq <- 1 - rss/tss
+  return(rsq)
+}
+
+# function calculating MAE
+mae <- function(actual, pred){
+  mae <- mean(abs((actual - pred)/actual))
+  return (mae)
+}
+
+```
+
+```{r table of calculated metrics on train data, echo = FALSE, results = "hide"}
+# Metrics measured on train data
+SVM_RMSE_train <- rmse(scaled_train$unemployment_rate, svm_train_predict)
+SVM_Rsquare_train <- rsquare(scaled_train$unemployment_rate, svm_train_predict)
+SVM_MAE_train <- mae(scaled_train$unemployment_rate, svm_train_predict)
+
+RF_RMSE_train <- rmse(scaled_train$unemployment_rate, rf_train_predict)
+RF_Rsquare_train <- rsquare(scaled_train$unemployment_rate, rf_train_predict)
+RF_MAE_train <- mae(scaled_train$unemployment_rate, rf_train_predict)
+
+
+ml_colnames <- c("RMSE","RSquare", "MAE")
+ml_rownames <- c("RF", "SVM")
+
+train_metric_ml <- rbind(c(RF_RMSE_train,RF_Rsquare_train, RF_MAE_train), c(SVM_RMSE_train,SVM_Rsquare_train, SVM_MAE_train))
+train_metric_ml
+colnames(train_metric_ml) <- ml_colnames
+rownames(train_metric_ml) <- ml_rownames
+
+# Display RMSE, Rsquared and MAE on train data
+kable(train_metric_ml) %>%
+  kable_styling(font_size = 12) %>% 
+  column_spec(c(1:4), width = "10em") %>% 
+  kable_styling(latex_options = "striped", full_width = FALSE, position="left")
+
+```
+
+
+```{r table of calculated metrics on test data, echo = FALSE, results = "hide"}
+# Metrics measured on test data
+SVM_RMSE_test <- rmse(scaled_test$unemployment_rate, svm_test_predict)
+SVM_Rsquare_test <- rsquare(scaled_test$unemployment_rate, svm_test_predict)
+SVM_MAE_test <- mae(scaled_test$unemployment_rate, svm_test_predict)
+
+RF_RMSE_test <- rmse(scaled_test$unemployment_rate, rf_test_predict)
+RF_Rsquare_test <- rsquare(scaled_test$unemployment_rate, rf_test_predict)
+RF_MAE_test <- mae(scaled_test$unemployment_rate, rf_test_predict)
+
+
+ml_colnames <- c("RMSE","RSquare", "MAE")
+ml_rownames <- c("RF", "SVM")
+
+test_metric_ml <- rbind(c(RF_RMSE_test,RF_Rsquare_test, RF_MAE_test), c(SVM_RMSE_test,SVM_Rsquare_test, SVM_MAE_test))
+
+colnames(test_metric_ml) <- ml_colnames
+rownames(test_metric_ml) <- ml_rownames
+
+kable(test_metric_ml) %>%
+  kable_styling(font_size = 12) %>% 
+  column_spec(c(1:4), width = "10em") %>% 
+  kable_styling(latex_options = "striped", full_width = FALSE, position="left")
+
+```
+
+
+```{r table of results on train and test data, echo = FALSE}
+# Combine the metrics from train and test data into dataframe
+df_metrics <- cbind(train_metric_ml, test_metric_ml)
+
+# Display of the results on train and test data
+knitr::kable(df_metrics, longtable = T, booktabs = T, caption = "Comparison of model evaluation metrics") %>%
+  add_header_above(c(" ", "Train Data" = 3, "Test Data" = 3)) %>% 
+  kable_styling(latex_options = c("repeat_header"))
+
+```
+
+```{r plot of predicted versus actual on test data, echo = FALSE, fig.width = 8, fig.height = 4}
+# Plot the test predicted values versus actual
+predict_test_df %>% 
+  mutate(group = as.factor(1)) %>% 
+  ggplot()+
+  geom_line(aes(x = date, y = test_unemployment_rate), linetype = "dashed")+
+  geom_line(aes(x = date, y = rf_predict_unemploy_test, color = "RF"))+
+  geom_line(aes(x = date, y = svm_predict_unemploy_test, color = "SVM"))+
+  scale_y_continuous(breaks = seq(3,8,0.5))+
+  xlab("") + ylab("") +
+  labs(title = "Predictions on Test Data: Australia's Unemployment Rate Over Time",
+       subtitle = "March 2018 - September 2020, Australian Bureau of Statistics, (ABS)")+
+  theme_classic()+
+  theme(plot.background = element_rect(fill = "dodgerblue2"),
+        axis.text.x = element_text(color = "white", angle = 60, hjust = 1),
+        axis.text.y = element_text(color = "white"),
+        plot.title = element_text(color = "white",size = 12),
+        plot.subtitle = element_text(color = "white",size = 10))
+``` 
+$\color{blue}{\text{Figure 3:}}$ Predicted vs actual values of unemployment rate for RF & SVM models on unseen data.
+
+### Neural Network
+<p>&nbsp;</p>
+
+
+Artificial Neural Network (ANN) was inspired by neurophysiologist and mathematician McHullock & Pitts, @mcculloch1943logical that described the functioning of neurons in the human brain. The first ANN was developed in an attempt to help computers simulate the way a human brain works, using a network of neurons to process information. The simplest type of ANN is called Single-Layer Perceptron or “Vanilla” Neural Net, (VNN) sometimes called the single hidden layer back-propagation network. Besides Single-Layer Perceptron, there is a Multilayer-Perceptron (MLP) or feedforward DNN. In fact, general architecture of ANNs consists of three major layers:
+
+*  Input Layer receives the inputs from the training dataset and pass on the information to the hidden nodes. No computation is performed in any of the input nodes.
+* Hidden Layers follows the input layer. There can be one or more hidden layers. It facilitates forward and backward passes and also helps in minimizing the error with each pass. The hidden nodes perform computations and transfer information from the input nodes to the output nodes. A collection of hidden nodes forms a “Hidden Layer”.
+*  Output Layer performs computations, generates predictions and transfers the information to the outside world.
+
+In order to develop the network architecture for a VNN, first of all we need to install [kears](https://cloud.r-project.org/web/packages/keras/keras.pdf) and [tensorFlor](https://tensorflow.rstudio.com/installation/) libraries in R. Due to the data transformation process that VNN is performing, they are highly sensitive to the individual scale of the predictor values. Consequently, at the pre-processing step we normalized the predictors with z-score normalization and applied the additional step for matrix transformation on train and test datasets including train and test labels as described in Data section. In addition, VNN requires all predictor variables and response to be numeric. Consequently, the date column was removed from the dataset, the same as we did for Machine Learning algorithms. 
+
+Next important steps to consider when developing a network architecture are: a) layers and nodes and b) activation.
+```{r, echo = FALSE}
+# Convert train and test datasets into matrix
+nn_train_matrix<- as.matrix(scaled_train[,2:ncol(scaled_train)])
+nn_test_matrix <- as.matrix(scaled_test[,2:ncol(scaled_test)])
+
+# Create and assign test and train labels in a matrix form
+nn_train_labels <- as.matrix(scaled_train[,1])
+nn_test_labels <- as.matrix(scaled_test[,1])
+```
+
+
+###### Layers and Nodes
+
+
+The layers and nodes are the building blocks of VNN which define the model's capacity. The number of nodes in a layer is referred to as the network’s width while the number of layers in a model is referred to as its depth. Layers are considered dense (fully connected) when all the nodes in each successive layer are connected. Therefore, the more layers and nodes we add the more opportunities for new features to be learned. We initiated our sequential VNN architecture with \colorbox{hightlightColor}{(keras model sequental)} function and then added three dense layers with \colorbox{hightlightColor}{layer dense} function. The first input dense layer contains the predictors which were passed as the number of predictor columns to \colorbox{hightlightColor}{input shape} argument of the function. Nevertheless, the successive layers are able to dynamically interpret the number of expected inputs based on the previous layer.  
+
+###### Hidden Layers
+
+
+There is no well-defined approach for selecting the number of hidden layers and nodes. Hence, the aim is to find the simplest model with the most efficient performance. Usually with regular tabular data, 2–5 hidden layers are often sufficient. The number of nodes is largely determined by the number of features in the data but it is not hard requirement. @hastie2017elements stated that a typical network contains between 5 to 100 neurons per layer in which it is better to have more than less as lighter networks tend to have a reduce flexibility with complex dataset. We have to bear in mind that when dealing with many features in the data and, therefore, many nodes, training deep models with many hidden layers can be computationally more efficient than training a single layer network with the same number of high volume nodes, @goodfellow2016deep. The dimension of our training dataset is 9 variables (7 predictors plus two variables year and month derived from date variable), therefore, the input layer and the three hidden layers contained 64 units (neurons). The choice of output layer is driven by the modeling task. For regression problems, our output layer contained one node that outputs the final predicted value.
+
+###### Activation
+
+
+A key component with neural networks is activation which refers to the same activation process of neuron activation in the human brain. Each node is connected to all the nodes in the previous layer. Each connection gets a weight and then that node adds all the incoming inputs multiplied by its corresponding connection weight plus an extra bias parameter. The summed total of these inputs become an input to an activation function. It is a mathematical function that determines whether or not there is enough informative input at a node to fire a signal to the next layer. There are several activation functions: linear, sigmoid, softmax, rectified linear unit(Relu), TanH, Swish, the Leaky Relu and etc. As we have rectangular data, the most common approach is to use ReLU activation functions which is simply taking the summed weighted inputs and transforming them to a 0 (not fire) or >0 (fire). For the output layers we dont specify any activation function. To reduce the bias, \colorbox{hightlightColor}{bias regularizer} parameter was set to regularizer_l2(0.01) in order to apply penalty on each layer bias during optimization, @gulli2017deep.
+. 
+
+###### Backpropagation
+
+
+Forward pass is the first run when VNN will select a batch of observations and fed into the network with randomly assign weights across all the node connections to generate the initial predictions. Then, the error function is computed by checking how far away the prediction is from the known true value. There are many algorithms that can minimize the error function but a training algorithm is needed that is very computationally efficient and that is backpropagation algorithm with gradient descent. This algorithm calculates how much the output values are affected by each of the weights in the model. The result of backpropagation is a set of weights that minimize the error function. Running the entire training dataset through the backpropagation process is called an epoch. Typically, a batch of samples is run in one big forward pass, and then backpropagation is performed on the aggregate result. The batch size and number of batches used in training, called iterations, are important hyperparameters that are tuned to get the best results. Hyperparameters related to the neural network structure are: number of hidden layers, droput, activation function, weights intialization. Hyperparameters related to the training algorithm are: learning rate, momentum, optimizer algorithm, epoch, iterations and batch size.
+
+To perform backpropagation we need two things: an objective (loss) function and an optimizer. For this regression problem, the loss function is mean square error (MSE). On each forward pass the VNN will measure its performance based on the loss function chosen. The default optimizer for regression is RMSProp which is tunable hyperparameter. Since choosing the best model is primarily based on trial and error, we performed many experiments with RMSProp optimizer and Adam optimizer. We achieved better results with Adam optimizer, an algorithm for first-order gradient-based optimization of stochastic objective functions and, with hyperparameter tuning applied as follows: lr = 0.001, beta_1 = 0.9, beta_2 = 0.999. To incorporate the backpropagation in our code sequence we use \colorbox{hightlightColor}{compile} function that has loss, optimizer and metrics argument specified. We use mean absolute error as metric argument. 
+
+###### Model Training
+ 
+It is performed with\colorbox{hightlightColor}{fit} function that has the following arguments applied: x and y for predictor and response variable matrices, batch_size (values are typically provided as a power of two that fit nicely into the memory requirements of the GPU or CPU hardware like 32, 64, 128, 256, and so on until several hundreds), epochs (the number of times the algorithm sees the entire data set, thus, the more complex the dataset, the more epochs we’ll require for our model to learn), verbose (set to FALSE but if TRUE we will see a live update of the loss function). Plotting the output shows how our loss function (and specified metrics) improves for each epoch.
+
+K folds cross validation (CV) was used, k = 4 and epoch = 300, to determine the optimal epoch level for the final model. Set.seed was initialised using the \colorbox{hightlightColor}{set.seed} function in tensorflow library, but it seem that it did not have any effect because each run resulted in different values of parameters. The optimum VNN was saved with \colorbox{hightlightColor}{save model tf} and loaded into R using \colorbox{hightlightColor}{load model tf}.
+ 
+For this task, more than 30 experiments were performed, but only 4 models were included in the analysis. The selected 4 models have the following properties: 
+
+*  Model 1 - 3 hidden layers, 64 neurons, bias regularizer and Adam optimizer
+*  Model 2 - 3 hidden layers, 32 nodes, bias regularizer and Adam optimizer
+*  Model 3 - 4 hidden layers, 32 nodes, bias regularizer and Adam optimizer
+*  Model 4 - 4 hidden layers, 128 nodes,bias regularize and Adam optimizer
+
+There is no magical formula to determine the right number of layers or the right size for each layer. We evaluated an array of different architectures (on the test data) in order to find the correct model size for the data. The general workflow discovered that 3 layers network while keeping our parameters the same showed diminishing returns with regard to validation loss. The bigger network with 4 layers started to overfitting almost immediately, after just 20 epoch, and it overfits much more severely.
+
+The (Table 8) shows that increasing the the number of hidden layers from three to four substantially decreased the accuracy of VNN which was easily intrpreted by the plots of predicted versus actual values on test data. However, despite large RMSE, the MAE is much lower than the other two metrics. This is because RMSE is very sensitive to large prediction errors unlike MAE which is why most investigations use this metric as the main one to determine the overall success of regression models. 
+
+The amount of neurons per layer was also tested to see the predictive power other VNN. The lighter network with 32 and 64 nodes per layer did a better job in predicting the response variable according to the obtained metrics in (Table 8). It was mention previously, that a lighter VNN with similar parameters to the optimal model would yield similar results because of the small amount of features and observations in the dataset. Our analysis confirmed this statement as correct because the evaluation metrics at network with more nodes did not show diminishing returns regarding validation loss.
+
+```{r, echo = FALSE, eval=FALSE}
+# Recreate the exact same model, including weights and optimizer
+model1<- load_model_tf("model1/")
+model2<- load_model_tf("model2/")
+model3<- load_model_tf("model2/")
+model4<- load_model_tf("model4/")
+
+```
+
+```{r, echo = FALSE, eval=FALSE}
+# Model 1 (3 layers, 64 neurons, optimizer_adam)
+
+tf$random$set_seed(123)
+# Network architecture with bias regularization normalization
+build_model <- function() {
+  model = keras_model_sequential() %>%
+    # First hidden layer
+    layer_dense(units= 64, bias_regularizer = regularizer_l2(0.01), input_shape=c(ncol(nn_train_matrix))) %>%
+    # Second hidden layer
+    layer_dense(units=64, bias_regularizer = regularizer_l2(0.01), activation = "relu") %>%
+    # Third hidden layer
+    layer_dense(units=64, bias_regularizer = regularizer_l2(0.01), activation = "relu") %>%
+    # Outer layer
+    layer_dense(units=1)
+ 
+# Backpropagation 
+  model %>% compile(
+    loss = "mse",
+    optimizer = optimizer_adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999),
+    metrics = list("mean_absolute_error")
+  )
+  
+}
+
+tic1 = proc.time()[3]
+# Cross Validation was adapted from notes (JCU)
+k <- 4
+indices <- sample(1:nrow(nn_train_matrix))
+folds <- cut(indices, breaks = k, labels = FALSE)
+num_epochs <- 300
+all_mae_histories <- NULL
+for (i in 1:k) {
+  cat("processing fold #", i, "\n")
+  
+  # Prepare the validation data: data from partition # k
+  val_indices <- which(folds == i, arr.ind = TRUE)
+  val_data <- nn_train_matrix[val_indices,]
+  val_targets <- nn_train_labels[val_indices]
+  
+  # Prepare the training data: data from all other partitions
+  partial_train_data <- nn_train_matrix[-val_indices,]
+  partial_train_targets <- nn_train_labels[-val_indices]
+  
+  # Build the Keras model (already compiled)
+  model <- build_model()
+  
+  # Train the model (in silent mode, verbose=0)
+  history <- model %>% fit(
+    partial_train_data, partial_train_targets,
+    validation_data = list(val_data, val_targets),
+    epochs = num_epochs, batch_size = 8, verbose = 0
+  )
+  mae_history <- history$metrics$val_mean_absolute_error
+  all_mae_histories <- rbind(all_mae_histories, mae_history)
+}
+
+toc1=proc.time()[3] - tic1
+average_mae_history <- data.frame(
+  epoch = seq(1:ncol(all_mae_histories)),
+  validation_mae = apply(all_mae_histories, 2, mean)
+)
+
+# Plot the model history
+modelhistory1 <- ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_smooth() +
+  labs(title = "Cross-Validation of NN Model (3 Hidden Layers, 64 neurons, ADAM Optimizer)")
+
+# Train the final model
+tf$random$set_seed(123)
+model <- build_model()
+history1 <- model %>% fit(nn_train_matrix, nn_train_labels,
+                         epochs = 133, batch_size = 8, verbose = 0)
+result_mod1 <- model %>% evaluate(nn_test_matrix, nn_test_labels)
+
+# Make predictions on test data
+test_predictions1 <- model %>% predict(nn_test_matrix, batch_size = 8)
+
+# Write the prediction into csv.file
+write.csv(test_predictions1, "test_predictions1.csv")
+```
+
+
+```{r, echo = FALSE}
+# Load the predictions
+test_predictions1<- read.csv("test_predictions1.csv")
+
+# Assign the predictions
+test_predictions1<-data.frame(test_predictions1)
+colnames(test_predictions1) <- c("", "pred1")
+test_pred1<-test_predictions1$pred1
+# create a dataframe for visualization of predictions
+NN_compare_test<- data.frame(date = scaled_complete_test$date,
+                             test_unemploy = scaled_complete_test$unemployment_rate,
+                             predict_unemploy = test_pred1)
+```
+
+
+```{r, echo = FALSE, fig.width = 8, fig.height = 4}
+
+# Plot the predictions
+NN_compare_test %>%
+  mutate(group = as.factor(1)) %>%
+  ggplot()+
+  geom_line(aes(x = date, y = test_unemploy), linetype = "dashed", color = "grey50")+
+  geom_line(aes(x = date, y = predict_unemploy, color = "NN"), color="purple")+
+  scale_y_continuous(labels = scales::comma) +
+  theme_bw() + xlab("") + ylab("") +
+  labs(title = "Predicted vs Actual Values on Test Data",
+       subtitle = "Neural Net Model (3 Hidden Layers, 64 neurons, ADAM Optimizer) ") +
+         geom_hline(yintercept = c(max(aus_data_all$unemployment_rate),
+                                   min(aus_data_all$unemployment_rate)),
+             color = 'gray50', linetype = "dashed") +
+         theme(plot.background = element_rect(fill = "dodgerblue2"),
+              axis.text.x = element_text(color = "white", angle = 60, hjust = 1),
+              axis.text.y = element_text(color = "white"),
+              plot.title = element_text(color = "white",size = 12),
+               plot.subtitle = element_text(color = "white",size = 10))
+```
+$\color{blue}{\text{Figure 4:}}$ Predicted vs actual values of unemployment rate for VNN model on unseen data
+
+```{r, echo=FALSE, results="hide"}
+# Obtained results for Model 1
+RMSE_nn1=rmse(nn_test_labels, test_pred1)
+RSquared1<- rsquare(nn_test_labels, test_pred1)
+MAE1<- mae(nn_test_labels, test_pred1)
+RMSE_nn1 <-0.4675584 
+RSquared1<-0.5815895
+MAE1<-0.05122373
+```
+
+
+```{r, echo = FALSE, eval=FALSE}
+# Model 2 (32 nodes, 3 layers, bias regularizer and adam optimizer)
+##########
+tf$random$set_seed(123)
+
+build_model <- function() {
+  model = keras_model_sequential() %>%
+    # First hidden layer
+    layer_dense(units= 32, bias_regularizer = regularizer_l2(0.01), input_shape=c(ncol(nn_train_matrix))) %>%
+    # Second hidden layer
+    layer_dense(units=32, bias_regularizer = regularizer_l2(0.01), activation = "relu") %>%
+    # Third hidden layer
+    layer_dense(units=32, bias_regularizer = regularizer_l2(0.01), activation = "relu")%>%
+    # Outer layer
+    layer_dense(units=1)
+  
+  model %>% compile(
+    loss = "mse",
+    optimizer = optimizer_adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999),
+    metrics = list("mean_absolute_error")
+  )
+  
+}
+
+tic_2 = proc.time()[3]
+# Cross Validation was adapted from Deep Learning book
+k <- 4
+indices <- sample(1:nrow(nn_train_matrix))
+folds <- cut(indices, breaks = k, labels = FALSE)
+num_epochs <- 300
+all_mae_histories <- NULL
+for (i in 1:k) {
+  cat("processing fold #", i, "\n")
+  
+  # Prepare the validation data: data from partition # k
+  val_indices <- which(folds == i, arr.ind = TRUE)
+  val_data <- nn_train_matrix[val_indices,]
+  val_targets <- nn_train_labels[val_indices]
+  
+  # Prepare the training data: data from all other partitions
+  partial_train_data <- nn_train_matrix[-val_indices,]
+  partial_train_targets <- nn_train_labels[-val_indices]
+  
+  # Build the Keras model (already compiled)
+  model <- build_model()
+  
+  # Train the model (in silent mode, verbose=0)
+  history <- model %>% fit(
+    partial_train_data, partial_train_targets,
+    validation_data = list(val_data, val_targets),
+    epochs = num_epochs, batch_size = 8, verbose = 0
+  )
+  mae_history <- history$metrics$val_mean_absolute_error
+  all_mae_histories <- rbind(all_mae_histories, mae_history)
+}
+
+toc_2=proc.time()[3] - tic_2
+average_mae_history <- data.frame(
+  epoch = seq(1:ncol(all_mae_histories)),
+  validation_mae = apply(all_mae_histories, 2, mean)
+)
+
+# Save entire model to the SavedModel format
+model %>% save_model_tf('model2/')
+
+ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_smooth() +
+  labs(title = "Cross-Validation of NN Model (3 Hidden Layers, 32 neurons, ADAM Optimizer)")
+
+optimum_epoch = which.min(average_mae_history$validation_mae)
+
+# Train the final model
+tf$random$set_seed(123)
+model <- build_model()
+history2<-model %>% fit(nn_train_matrix, nn_train_labels,
+                       epochs = 102, batch_size = 8, verbose = 0)
+result_mod2 <- model %>% evaluate(nn_test_matrix, nn_test_labels)
+
+# Results obtained:
+loss <- 0.4421440 
+mean_absolute_error <- 0.5352471 
+
+# Save entire model to the SavedModel format
+model %>% save_model_tf('model2/')
+
+# Make predictions
+test_predictions2 <- model %>% predict(nn_test_matrix, batch_size = 8)
+
+# Write the predictions as csv.file
+write.csv(test_predictions2, "test_predictions2.csv")
+```
+
+```{r, echo = FALSE}
+# Load the prediction 
+test_predictions2<- read.csv("test_predictions2.csv")
+
+# Assign the predictions
+test_predictions2<-data.frame(test_predictions2)
+colnames(test_predictions2) <- c("", "pred2")
+test_pred2<-test_predictions2$pred2
+```
+
+
+```{r, echo=FALSE, eval=FALSE}
+# Create a dataframe for plot
+NN_compare_test<- data.frame(date = scaled_complete_test$date,
+                             test_unemploy = scaled_complete_test$unemployment_rate,
+                             predict_unemploy = test_pred2)
+
+# Plot of predicted versus actual for Model 2 (see Appendix)
+NN_compare_test %>%
+  mutate(group = as.factor(1)) %>%
+  ggplot()+
+  geom_line(aes(x = date, y = test_unemploy))+
+  geom_line(aes(x = date, y = predict_unemploy, color = "red"))+
+  scale_y_continuous(labels = scales::comma) +
+  theme_bw() + xlab("") + ylab("") +
+  labs(title = "Predicted vs Actual Values on Test Data",
+       subtitle = "Neural Net Model (3 Hidden Layers, 32 neurons, ADAM Optimizer) ") 
+```
+
+```{r, echo = FALSE, results = "hide"}
+# Results obtained for Model 2
+RMSE_nn2=rmse(nn_test_labels, test_pred2)
+RSquared2<- rsquare(nn_test_labels, test_pred2)
+MAE2<- mae(nn_test_labels, test_pred2)
+RMSE_nn2 <-0.6506521
+RSquared2<- 0.1897323
+MAE2<-0.09439285
+```
+
+
+```{r, echo = FALSE, eval=FALSE}
+# Model 3 (32 nodes, 4 hidden layers, Adam optimizer and bias regularizer)
+##########
+tf$random$set_seed(123)
+
+build_model <- function() {
+  model = keras_model_sequential() %>%
+    # First hidden layer
+    layer_dense(units= 32, bias_regularizer = regularizer_l2(0.01), input_shape=c(ncol(nn_train_matrix))) %>%
+    # Second hidden layer
+    layer_dense(units=32, bias_regularizer = regularizer_l2(0.01), activation = "relu") %>%
+    # Third hidden layer
+    layer_dense(units=32, bias_regularizer = regularizer_l2(0.01), activation = "relu")%>%
+    # Forth hidden layer
+    layer_dense(units=32, bias_regularizer = regularizer_l2(0.01), activation = "relu")%>%
+    # Outer layer
+    layer_dense(units=1)
+  
+  model %>% compile(
+    loss = "mse",
+    optimizer = optimizer_adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999),
+    metrics = list("mean_absolute_error")
+  )
+  
+}
+
+tic3 = proc.time()[3]
+# Cross Validation was adapted from Deep Learning book
+k <- 4
+indices <- sample(1:nrow(nn_train_matrix))
+folds <- cut(indices, breaks = k, labels = FALSE)
+num_epochs <- 300
+all_mae_histories <- NULL
+for (i in 1:k) {
+  cat("processing fold #", i, "\n")
+  
+  # Prepare the validation data: data from partition # k
+  val_indices <- which(folds == i, arr.ind = TRUE)
+  val_data <- nn_train_matrix[val_indices,]
+  val_targets <- nn_train_labels[val_indices]
+  
+  # Prepare the training data: data from all other partitions
+  partial_train_data <- nn_train_matrix[-val_indices,]
+  partial_train_targets <- nn_train_labels[-val_indices]
+  
+  # Build the Keras model (already compiled)
+  model <- build_model()
+  
+  # Train the model (in silent mode, verbose=0)
+  history <- model %>% fit(
+    partial_train_data, partial_train_targets,
+    validation_data = list(val_data, val_targets),
+    epochs = num_epochs, batch_size = 8, verbose = 0
+  )
+  mae_history <- history$metrics$val_mean_absolute_error
+  all_mae_histories <- rbind(all_mae_histories, mae_history)
+}
+
+toc3=proc.time()[3] - tic3
+average_mae_history <- data.frame(
+  epoch = seq(1:ncol(all_mae_histories)),
+  validation_mae = apply(all_mae_histories, 2, mean)
+)
+
+# Save entire model to the SavedModel format
+model %>% save_model_tf('model3/')
+
+ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_smooth() +
+  labs(title = "Cross-Validation of NN Model (4 Hidden Layers, 32 neurons, ADAM Optimizer)")
+
+# Find the optimum epoch
+optimum_epoch = which.min(average_mae_history$validation_mae)
+
+# Train the final model
+tf$random$set_seed(123)
+model <- build_model()
+history3<-model %>% fit(nn_train_matrix, nn_train_labels,
+                        epochs = 49, batch_size = 8, verbose = 0)
+result_mod3 <- model %>% evaluate(nn_test_matrix, nn_test_labels)
+
+# Obtained results:
+loss <-0.3215344 
+mean_absolute_error <-0.3600572 
+
+# Save entire model to the SavedModel format
+model %>% save_model_tf('model3/')
+
+# Make predictions
+test_predictions3 <- model %>% predict(nn_test_matrix, batch_size = 8)
+
+# Write csv.file
+write.csv(test_predictions3, "test_predictions3.csv")
+```
+
+```{r, echo = FALSE}
+# Load predictions 3
+test_predictions3<- read.csv("test_predictions3.csv")
+
+# Assign the predictions
+test_predictions3<-data.frame(test_predictions3)
+colnames(test_predictions3) <- c("", "pred3")
+test_pred3<-test_predictions3$pred3
+
+```
+
+```{r, echo = FALSE, eval=FALSE}
+# Plot the results predicted versus actual of Model 3 (see Appendix)
+NN_compare_test<- data.frame(date = scaled_complete_test$date,
+                             test_unemploy = scaled_complete_test$unemployment_rate,
+                             predict_unemploy = test_pred3)
+NN_compare_test %>%
+  mutate(group = as.factor(1)) %>%
+  ggplot()+
+  geom_line(aes(x = date, y = test_unemploy))+
+  geom_line(aes(x = date, y = predict_unemploy, color = "red"))+
+  scale_y_continuous(labels = scales::comma) +
+  theme_bw() + xlab("") + ylab("") +
+  labs(title = "Predicted vs Actual Values on Test Data",
+       subtitle = "Neural Net Model (4 Hidden Layers, 32 neurons, ADAM Optimizer) ") 
+```
+
+```{r, echo = FALSE}
+# Obtained results for Model 3
+RMSE_nn3=rmse(nn_test_labels, test_pred3)
+RSquared3<- rsquare(nn_test_labels, test_pred3)
+MAE3<- mae(nn_test_labels, test_pred3)
+RMSE_nn3<-0.555344
+RSquared3<-0.409724
+MAE3<-0.061595
+```
+
+```{r, echo = FALSE, eval=FALSE}
+# Model 4 (nodes 128, 4 layers, Adam, bias regularize)
+##########
+tf$random$set_seed(123)
+
+build_model <- function() {
+  model = keras_model_sequential() %>%
+    # First hidden layer
+    layer_dense(units= 128, bias_regularizer = regularizer_l2(0.01), input_shape=c(ncol(nn_train_matrix))) %>%
+    # Second hidden layer
+    layer_dense(units=128, bias_regularizer = regularizer_l2(0.01), activation = "relu") %>%
+    # Third hidden layer
+    layer_dense(units=128, bias_regularizer = regularizer_l2(0.01), activation = "relu")%>%
+    # Forth hidden layer
+    layer_dense(units=128, bias_regularizer = regularizer_l2(0.01), activation = "relu")%>%
+    # Outer layer
+    layer_dense(units=1)
+  
+  model %>% compile(
+    loss = "mse",
+    optimizer = optimizer_adam(lr = 0.001, beta_1 = 0.9, beta_2 = 0.999),
+    metrics = list("mean_absolute_error")
+  )
+  
+}
+
+tic4 = proc.time()[3]
+# Cross Validation was adapted from Deep Learning book
+k <- 4
+indices <- sample(1:nrow(nn_train_matrix))
+folds <- cut(indices, breaks = k, labels = FALSE)
+num_epochs <- 300
+all_mae_histories <- NULL
+for (i in 1:k) {
+  cat("processing fold #", i, "\n")
+  
+  # Prepare the validation data: data from partition # k
+  val_indices <- which(folds == i, arr.ind = TRUE)
+  val_data <- nn_train_matrix[val_indices,]
+  val_targets <- nn_train_labels[val_indices]
+  
+  # Prepare the training data: data from all other partitions
+  partial_train_data <- nn_train_matrix[-val_indices,]
+  partial_train_targets <- nn_train_labels[-val_indices]
+  
+  # Build the Keras model (already compiled)
+  model <- build_model()
+  
+  # Train the model (in silent mode, verbose=0)
+  history <- model %>% fit(
+    partial_train_data, partial_train_targets,
+    validation_data = list(val_data, val_targets),
+    epochs = num_epochs, batch_size = 8, verbose = 0
+  )
+  mae_history <- history$metrics$val_mean_absolute_error
+  all_mae_histories <- rbind(all_mae_histories, mae_history)
+}
+
+toc4=proc.time()[3] - tic4
+average_mae_history <- data.frame(
+  epoch = seq(1:ncol(all_mae_histories)),
+  validation_mae = apply(all_mae_histories, 2, mean)
+)
+
+# Save entire model to the SavedModel format
+model %>% save_model_tf('model4/')
+
+ggplot(average_mae_history, aes(x = epoch, y = validation_mae)) + geom_smooth() +
+  labs(title = "Cross-Validation of NN Model (4 Hidden Layers, 128 neurons, ADAM Optimizer)")
+
+# Find the optimum epoch
+optimum_epoch = which.min(average_mae_history$validation_mae)
+
+# Train the final model
+tf$random$set_seed(123)
+model <- build_model()
+history4<-model %>% fit(nn_train_matrix, nn_train_labels,
+                        epochs = 88, batch_size = 8, verbose = 0)
+result_mod4 <- model %>% evaluate(nn_test_matrix, nn_test_labels)
+
+# Obtained results
+loss <-1.0142958 
+mean_absolute_error <-0.9116521  
+
+# Perform predictions on test data
+test_predictions4 <- model %>% predict(nn_test_matrix, batch_size = 8)
+
+# Write csv file
+write.csv(test_predictions4, "test_predictions4.csv")
+```
+
+```{r, echo = FALSE}
+# Load the csv file
+test_predictions4<- read.csv("test_predictions4.csv")
+
+# Convert to dataframe and assign the predictions
+test_predictions4<-data.frame(test_predictions4)
+colnames(test_predictions4) <- c("", "pred4")
+test_pred4<-test_predictions4$pred4
+```
+
+
+```{r, echo =FALSE, eval=FALSE}
+# Plot the predicted versus actual for Model 4 (see Appendix)
+NN_compare_test<- data.frame(date = scaled_complete_test$date,
+                             test_unemploy = scaled_complete_test$unemployment_rate,
+                             predict_unemploy = test_pred4)
+NN_compare_test %>%
+  mutate(group = as.factor(1)) %>%
+  ggplot()+
+  geom_line(aes(x = date, y = test_unemploy))+
+  geom_line(aes(x = date, y = predict_unemploy, color = "red"))+
+  scale_y_continuous(labels = scales::comma) +
+  theme_bw() + xlab("") + ylab("") +
+  labs(title = "Predicted vs Actual Values on Test Data",
+       subtitle = "Neural Net Model (4 Hidden Layers, 128 neurons, ADAM Optimizer) ") 
+
+```
+
+```{r, echo=FALSE}
+# Obtained results for Model 4
+RMSE_nn4=rmse(nn_test_labels, test_pred4)
+RSquared4<- rsquare(nn_test_labels, test_pred4)
+MAE4<- mae(nn_test_labels, test_pred4)
+RMSE_nn4<-1.000261
+RSquared4<-0.1483297
+MAE4<-0.06159527
+```
+
+
+```{r, echo = FALSE}
+
+ml_colnames <- c("Hidden Layer", "Node", "RMSE","RSquare", "MAE")
+ml_rownames <- c("Model 1", "Model 2", "Model 3", "Model 4")
+
+layer <-c(3, 3, 4, 4)
+node <-c(64, 32,32,128)
+rmse_all <-c(RMSE_nn1, RMSE_nn2, RMSE_nn3, RMSE_nn4)
+rsquared_all <- c(RSquared1, RSquared2, RSquared3, RSquared4)
+mae_all <- c(MAE1, MAE2, MAE3, MAE4)
+
+metric_df <- cbind(layer, node, rmse_all, rsquared_all, mae_all)
+
+colnames(metric_df) <- ml_colnames
+rownames(metric_df) <- ml_rownames
+
+kable(metric_df, caption="Comparison of model evaluation metrics") %>% 
+  kable_styling(full_width = F, font_size = 8, latex_options = "striped")
+```
+
+### Comparison and Suggestions
+
+
+
+Our analysis confirmed that VNN network with 3 hidden layers and 64 nodes has a solution and predicitve ability to predict the unemployment rate with RMSE = 0.4675584 and $R^2$ =0.5815895 which means that the model fitted 58% of the data. The SVM with Radial Basis also has predicitve powers to predict the unemployment rate on unseen data with RMSE = 0.6381833 and $R^2$ =  0.2204899 but a little less efficiently than a VNN. 
+
+Obtaining the best possible results on this task can only be done with large ensembles of models. Ensembling via a
+well-optimized weighted average is usually good enough. We know that diversity is strength. The best ensembles are
+sets of models that are as dissimilar as possible (while having as much predictive power as possible, naturally). Recommended model on this task would be ensemble of NN, SVM, XGBoost, GBM, Cubist and many other powerful algorithms.
+
+###### *Cross-Validated Predictive Accuracy*
+
+Accuracy of both models was assessed after performing cross validation, 5-fold with 3 repeats for SVM and 4-fold for VNN with keras according to the straightforward code sequence provided in the notes of JCU. To evaluate and compare our network with SVM performance accuracy,  we split the data into training and testing datasets. The testing dataset contains only 11 observations and has a high variance which would prevent us from reliably evaluating the models. Consequently, the outliers of all data points were replaced with median values in the pre-processing step of the analysis. Hence, the best practice in such situations is to use K-fold cross-validation. The validation score for the model used is then the average of the K validation scores obtained. 
+
+###### *Computational Training Time*
+
+The computational training time between the two models varies less than expected given the training dataset size. Computation time of SVM was just 0.222 minutes to do one run of 5-fold cross validation training over the training dataset. In contrast the VNN took from 1.1 to 1.2 minutes to do one cross-validated run. This is 0.40 times longer which is neglectable. Although not a significant issue on a small dataset this difference in training time can quickly expand for larger datasets. 
+
+A general way of looking at the efficiency of embedding a problem in a VNN comes from a computational complexity point of view. Time complexity of VNN is related to the certain number of steps it has to undertake, memory size (space complexity), and length of algorithm (Kolmogorov complexity), @abu1986neutral. In a VNN simulation the number of computations is a measure of time complexity, the number of units is a measure of space complexity, and the number of weights (degrees of freedom) is a measure of Kolmogorov complexity. When we are trying to solve a problem with a VNN, we seek to minimize, simultaneously, the resulting time, space, and Kolmogorov complexities of the network. If a given problem is very demanding in terms of space complexity, then the required network size is large and thus the number of weights is large, even if the Kolmogorov complexity of the algorithm is very modest. VNN solutions of problems with short algorithms and high-space complexity are very inefficient. But on the other hand, problems which require a very long algorithm such as pattern recognition, then VNNs are the most efficient becuase the capacity of the net grows faster than the number of units.
+
+###### *Interpretability*
+
+The algorithms like SVM with Radial Basis Kernel and VNNs are very complex algorithms and very accurate for predicting nonlinear and rare phenomena. Unfortunately, more accuracy often comes at the expense of interpretability, they are difficult to interpret which is crucial for business documentation, regulatory oversight, and human acceptance and trust. Usually, these models are considered “as black boxes” due to their inner-complexity. There are multiple packages developed in the past years that provide robust machine learning interpretation capabilities which are completely based on model agnostic-approaches for interpreting the models such as: LIME, DALEX and etc. We have studied only model specific approach for interpreting the models which is based on understanding only feature importance. In model-agnostic approaches, the model is treated as a “black box”. The separation of interpretability from the specific model allows us to easily compare feature importance across different models.
+
+If a greater number of predictor variables and observations were implemented into the model, this may have improve prediction power of the VNN. On the other hand, it is also possible that additional macroeconomics and microeconomics variables of unemployment are necessary to be included into analysis. We have to note that this is time series data which need to be analyzed as time series data because our analysis without the date variable disregarded each quarter which affected the forecasting performance of the VNN. Various methods as part of advanced deep learning for times series data should be investigated further such as Recurrent Neural Networks (RNNs) that could provide better analytics of unemployment rate in Australia.
+
+\newpage
+#### Apendices
+<p>&nbsp;</p>
+
+
+```{r, out.width = "100%", fig.align = "center", echo=FALSE, fig.cap="Univariate analysis: Histograms"}
+knitr::include_graphics('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/Histograms.png')
+```
+
+```{r, out.width = "100%", fig.align = "center", echo=FALSE, fig.cap="Univariate analysis: Density plots"}
+knitr::include_graphics('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/Density plots.png')
+```
+
+```{r, out.width = "100%", fig.align = "center", echo=FALSE, fig.cap="Univariate analysis: Box plots"}
+knitr::include_graphics('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/Box plots.png')
+```
+
+```{r, out.width = "100%", fig.align = "center", echo=FALSE, fig.cap="Multivariate analysis: Scatter plots"}
+knitr::include_graphics('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/Scatter plots.png')
+```
+
+```{r, out.width = "100%", fig.align = "center", echo=FALSE, fig.cap="Multivariate analysis: Correlation plot"}
+knitr::include_graphics('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/Correlation plot.png')
+```
+
+```{r,echo=FALSE, out.width = "100%", fig.show='hold', fig.align = "default" }
+# Model 1 
+knitr::include_graphics(c('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/M1.png', '/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/pred1.png'))
+```
+
+
+```{r, echo=FALSE, out.width = "100%", fig.show='hold', fig.align = "default"}
+# Model 2 
+knitr::include_graphics(c('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/M2.png', '/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/pred2.png'))
+
+```
+
+```{r, echo=FALSE, out.width = "100%", fig.show='hold', fig.align = "default"}
+# Model 3
+knitr::include_graphics(c( '/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/M3.png',
+'/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/pred3.png'))
+```
+
+```{r, echo=FALSE, out.width = "100%", fig.show='hold', fig.align = "default"}
+# Model 4 
+knitr::include_graphics(c('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/M4.png', '/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/4_128_ADAM.png'))
+```
+
+```{r, echo=FALSE, out.width = "100%", fig.show='hold', fig.align = "default"}
+# SVM Model 
+knitr::include_graphics(c('/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/fit.svm1.png', '/Users/Biljana/MA5832_DM_ML/Assessments/Ass_3/fit.svm2.png'))
+```
+
+
+
+### References
